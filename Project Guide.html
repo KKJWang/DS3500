@@ -1,0 +1,114 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome file</title>
+  <link rel="stylesheet" href="https://stackedit.io/style.css" />
+</head>
+
+<body class="stackedit">
+  <div class="stackedit__left">
+    <div class="stackedit__toc">
+      
+<ul>
+<li><a href="#tic-tac-toe-evolutionary-ai-project">Tic Tac Toe Evolutionary AI Project</a>
+<ul>
+<li><a href="#summary">Summary</a></li>
+<li><a href="#implementation">Implementation</a></li>
+<li><a href="#evaluation--visualization">Evaluation & Visualization</a></li>
+<li><a href="#stretch-goals">Stretch Goals</a></li>
+</ul>
+</li>
+</ul>
+
+    </div>
+  </div>
+  <div class="stackedit__right">
+    <div class="stackedit__html">
+      <h1 id="tic-tac-toe-evolutionary-ai-project">Tic Tac Toe Evolutionary AI Project</h1>
+<h2 id="summary">Summary</h2>
+<p>This is the project guide for the Tic Tac Toe Evolutionary AI Project.</p>
+<p>In this project, we will use evolutionary computing to train a Tic Tac Toe AI.</p>
+<p>The AI player will be represented by a “strategy” data structure, that informs how it plays moves based on the state of the game. We refer to an “AI” as the entity that plays Tic Tac Toe according to its strategy.</p>
+<p>We initialize the population of AIs with a single AI that chooses all <em>valid</em> moves at random. Let us refer to this basic strategy as <code>RandomValid</code>. We will add genetic diversity by introducing small random changes in the probability for each move. The magnitude of these changes is controlled by a hyperparameter <code>delta</code>.</p>
+<p>Each generation, every AI will play against each other in a round robin tournament. We will only keep the top <code>n</code> solutions for the next generation (where <code>n</code> is a hyperparameter).</p>
+<p>For each iteration, the top AI will survive and reproduce, at the end of many iterations the top solution will be chosen as the “best” AI. Furthermore, <code>k</code> <code>RandomValid</code> strategies are added to compete with the existing strategies to improve genetic diversity  (where <code>k</code> is a hyperparameter).</p>
+<p>We may select the best of the top solutions after a sufficient amount of iterations.</p>
+<h2 id="implementation">Implementation</h2>
+<p>We will use <code>evo.py</code> from lecture as the evolutionary computing library for this task.</p>
+<p><code>evo.py</code> expects objective functions to measure the fitness of a solution, agents to introduce diversity in the population, and the data definition of a solution – which in our case would represent the strategy for a Tic Tac Toe AI.</p>
+<h3 id="strategy-data-definition">Strategy Data Definition</h3>
+<p>A data definition for a Tic Tac Toe AI strategy must support:</p>
+<ol>
+<li>The ability to determine what move to play from what state: <code>Strategy -&gt; Move</code></li>
+<li>The ability to adjust a strategy to make some moves more likely than others.</li>
+</ol>
+<p>We choose the following concrete data structure:</p>
+<p>A <code>Strategy</code> is a <code>Dict&lt;BoardState, Dict&lt;Move, float&gt;&gt;</code>,<br>
+where the outer dictionary is a total map of all 3^9 states to an inner dictionary mapping all (2 * 3 * 3) possible moves to their probability. The invariants are:</p>
+<ol>
+<li>the set keys of outer dict are the set all possible values of <code>BoardState</code>.</li>
+<li>the set keys of the inner dict are the set of all possible <em>valid</em> values of <code>Move</code> given the <code>BoardState</code></li>
+<li>the set of values of the inner dict sum to approximately <code>1.0</code>, as each represents a probability in the range <code>[0.0, 1.0]</code></li>
+</ol>
+<p>A <code>BoardState</code> is a <code>Tuple&lt;Tuple&lt;Mark&gt;&gt;</code> which represents the rows of a 2D Tic Tac Toe board.</p>
+<p>A Mark is one of <code>'X'</code>, <code>'O'</code>, or <code>'_'</code> to represent a mark on the board.</p>
+<p>A <code>Move</code> <code>(m, r, c)</code> is a <code>Tuple&lt;Mark, int, int&gt;</code> where <code>m</code> is the mark to be made at the position on the board at row <code>r</code> and col <code>c</code> (where <code>0,0</code> is the top left cell and <code>2,2</code> is the bottom right.)</p>
+<p>A <code>Move</code> is valid in the context of a <code>BoardState</code> if it does not overwrite an existing mark, or use a mark out of turn.</p>
+<p>An example of a <code>Strategy</code> might be:</p>
+<pre class=" language-python"><code class="prism  language-python"><span class="token punctuation">{</span>
+  <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token string">'X'</span><span class="token punctuation">,</span><span class="token string">'_'</span><span class="token punctuation">,</span><span class="token string">'O'</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+   <span class="token punctuation">(</span><span class="token string">'X'</span><span class="token punctuation">,</span><span class="token string">'O'</span><span class="token punctuation">,</span><span class="token string">'_'</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+   <span class="token punctuation">(</span><span class="token string">'_'</span><span class="token punctuation">,</span><span class="token string">'X'</span><span class="token punctuation">,</span><span class="token string">'O'</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">:</span> <span class="token punctuation">{</span>
+   <span class="token punctuation">(</span><span class="token string">'X'</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">:</span> <span class="token number">0.9</span><span class="token punctuation">,</span> <span class="token comment"># Would lead to an X victory</span>
+   <span class="token punctuation">(</span><span class="token string">'X'</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">:</span> <span class="token number">0.08</span><span class="token punctuation">,</span>
+   <span class="token punctuation">(</span><span class="token string">'X'</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">3</span><span class="token punctuation">)</span><span class="token punctuation">:</span> <span class="token number">0.02</span>
+	<span class="token punctuation">}</span>
+  <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>This choice of representation allows the AI to make illegal moves. We delegate the handling of invalid moves to the evaluation function, which will penalize cheating worse than losing, drawing, or winning.</p>
+<h4 id="aside-choosing-a-more-performant-encoding">Aside: Choosing a more performant encoding</h4>
+<p>Depending on the performance of this solution, we may switch to an <code>(|BoardState| x |Move|)</code> numpy array, which can represent the same information through an integer encoding of <code>BoardState</code>s and <code>Move</code>s. Additionally, there are few enough <code>BoardState</code> and <code>Move</code> combinations that one might create a transition graph from every state to every other possible state. Making transitioning between states (making a move) constant time.</p>
+<p>However, we start with the slow naive solution for speed of development and tests for correctness. Performance optimizations are secondary.</p>
+<h3 id="objectives">Objectives</h3>
+<p>We define an objective function to measure the fitness of a solution.</p>
+<p>Let <code>n_games</code> be a hyperparameter of the model that determines the number of games to play.</p>
+<p>Each solution is a strategy, so we evaluate the strategy by simulating <code>n_games</code> games against the <code>RandomValid</code> strategy as <code>X</code>, and then again as <code>O</code>. As we play the games, we accumulate a penalty score.</p>
+<p>For each game:</p>
+<ul>
+<li>If the solution strategy wins, do not add to the total penalty.</li>
+<li>If the solution strategy draws, add 1 to the total penalty.</li>
+<li>If the solution strategy loses, add 2 to the total penalty.</li>
+</ul>
+<h3 id="agents">Agents</h3>
+<p>We only have a single agent, which given a <code>Strategy</code>, will introduce small changes to the probabilities of each move.</p>
+<p>This is a complex operation, but can be sufficiently described with a <a href="https://en.wikipedia.org/wiki/Dirichlet_distribution">Dirichlet distribution</a>.<br>
+<code>np.random.dirichlet</code> can be used to introduce random noise in the probabilities, using <code>delta</code> as a hyperparameter to determine the magnitude of the noise.</p>
+<p>E.x.</p>
+<pre class=" language-python"><code class="prism  language-python"><span class="token keyword">import</span> numpy <span class="token keyword">as</span> np
+
+<span class="token keyword">def</span> <span class="token function">add_noise_to_probabilities</span><span class="token punctuation">(</span>probabilities<span class="token punctuation">,</span> delta<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token comment"># Convert the list to a NumPy array</span>
+    probs <span class="token operator">=</span> np<span class="token punctuation">.</span>array<span class="token punctuation">(</span>probabilities<span class="token punctuation">)</span>
+    <span class="token comment"># Generate random noise using the Dirichlet distribution</span>
+    noise <span class="token operator">=</span> np<span class="token punctuation">.</span>random<span class="token punctuation">.</span>dirichlet<span class="token punctuation">(</span><span class="token punctuation">[</span>delta<span class="token punctuation">]</span><span class="token operator">*</span><span class="token builtin">len</span><span class="token punctuation">(</span>probabilities<span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token comment"># Add the noise to the probabilities</span>
+    new_probs <span class="token operator">=</span> probs <span class="token operator">+</span> noise
+    <span class="token comment"># Normalize the new probabilities so they sum to 1.0</span>
+    new_probs <span class="token operator">/=</span> np<span class="token punctuation">.</span><span class="token builtin">sum</span><span class="token punctuation">(</span>new_probs<span class="token punctuation">)</span>
+    <span class="token keyword">return</span> new_probs<span class="token punctuation">.</span>tolist<span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+</code></pre>
+<h2 id="evaluation--visualization">Evaluation &amp; Visualization</h2>
+<p>After running <code>evo.py</code>, the resulting top AI should converge into a strategy that always wins or draws. One interesting idea might be to take snapshots of the top solutions as the strategy evolves, and visualize games played against <code>RandomValid</code>, or other snapshots! It may produce interesting results, showing how the AI <em>evolved</em> to make better moves leading to fewer losses.</p>
+<h2 id="stretch-goals">Stretch Goals</h2>
+<p>If we have time, investigating the more performant approaches mentioned above and benchmarking the performance gains would be a good test of our knowledge, and make the time needed to evolve a strong AI significant shorter.</p>
+
+    </div>
+  </div>
+</body>
+
+</html>
